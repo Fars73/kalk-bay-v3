@@ -71,28 +71,109 @@ const DirectionsMap = () => {
         destination: CHURCH_LOCATION,
         travelMode: google.maps.TravelMode[selectedMode],
         optimizeWaypoints: true,
-        provideRouteAlternatives: false,
+        provideRouteAlternatives: true,
+        drivingOptions: selectedMode === 'DRIVING' ? {
+          departureTime: new Date(),
+          trafficModel: google.maps.TrafficModel.BEST_GUESS
+        } : undefined,
+        transitOptions: selectedMode === 'TRANSIT' ? {
+          departureTime: new Date(),
+          modes: [
+            google.maps.TransitMode.BUS,
+            google.maps.TransitMode.RAIL,
+            google.maps.TransitMode.SUBWAY,
+            google.maps.TransitMode.TRAIN,
+            google.maps.TransitMode.TRAM
+          ],
+          routingPreference: google.maps.TransitRoutePreference.FEWER_TRANSFERS
+        } : undefined,
+        unitSystem: google.maps.UnitSystem.METRIC,
         avoidHighways: false,
         avoidTolls: false,
+        avoidFerries: true,
+        region: 'za'
       });
 
       if (results.status === 'OK') {
-        setDirectionsResponse(results);
-        const leg = results.routes[0].legs[0];
-        if (leg) {
-          setDistance(leg.distance?.text || '');
-          setDuration(leg.duration?.text || '');
+        if (results.routes && results.routes.length > 0) {
+          let bestRoute = results.routes[0];
+          let bestScore = Infinity;
+
+          results.routes.forEach((route) => {
+            const leg = route.legs?.[0];
+            if (!leg) return;
+
+            // Base score starts with duration
+            const durationValue = leg.duration?.value ?? Infinity;
+            let score = durationValue;
+
+            // Add distance factor (penalize unnecessarily long routes)
+            const distanceValue = leg.distance?.value ?? 0;
+            const directDistance = google.maps.geometry.spherical.computeDistanceBetween(
+              leg.start_location,
+              leg.end_location
+            );
+            const detourFactor = distanceValue / directDistance;
+            score *= detourFactor;
+
+            // Consider traffic conditions for driving
+            if (selectedMode === 'DRIVING' && leg.duration_in_traffic?.value) {
+              const trafficFactor = leg.duration_in_traffic.value / durationValue;
+              score *= trafficFactor;
+            }
+
+            // Penalize routes with many steps (turns/complexity)
+            if (leg.steps) {
+              const complexityPenalty = leg.steps.length * 30; // 30 seconds per turn
+              score += complexityPenalty;
+            }
+
+            // Transit-specific scoring
+            if (selectedMode === 'TRANSIT' && leg.steps) {
+              const transitSteps = leg.steps.filter(
+                (step) => step.travel_mode === google.maps.TravelMode.TRANSIT
+              );
+              // Heavier penalty for transfers (15 min per transfer)
+              score += (transitSteps.length - 1) * 900;
+            }
+
+            if (score < bestScore) {
+              bestScore = score;
+              bestRoute = route;
+            }
+          });
+
+          // Create a new DirectionsResult with only the best route
+          const optimizedResult: google.maps.DirectionsResult = {
+            ...results,
+            routes: [bestRoute]
+          };
           
-          // Adjust map bounds to fit the route
-          if (map && leg.start_location && leg.end_location) {
-            const bounds = new google.maps.LatLngBounds();
-            bounds.extend(leg.start_location);
-            bounds.extend(leg.end_location);
-            map.fitBounds(bounds);
+          setDirectionsResponse(optimizedResult);
+          
+          const leg = bestRoute.legs?.[0];
+          if (leg) {
+            setDistance(leg.distance?.text ?? '');
+            if (selectedMode === 'TRANSIT' && leg.duration_in_traffic) {
+              setDuration(`${leg.duration?.text ?? ''} (with transit times)`);
+            } else {
+              setDuration(leg.duration?.text ?? '');
+            }
+            
+            // Adjust map bounds
+            if (map && leg.start_location && leg.end_location) {
+              const bounds = new google.maps.LatLngBounds();
+              bounds.extend(leg.start_location);
+              bounds.extend(leg.end_location);
+              // Add padding for better view
+              map.fitBounds(bounds, { padding: { top: 50, right: 50, bottom: 50, left: 50 } });
+            }
           }
         }
+      } else if (results.status === 'ZERO_RESULTS') {
+        throw new Error('No routes found for this mode of transport');
       } else {
-        throw new Error('Failed to calculate route');
+        throw new Error(`Failed to calculate route: ${results.status}`);
       }
     } catch (error) {
       console.error('Directions error:', error);
@@ -119,7 +200,7 @@ const DirectionsMap = () => {
     <div className="relative h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <LoadScript
         googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-        libraries={['places']}
+        libraries={['places', 'geometry']}
       >
         <GoogleMap
           center={CHURCH_LOCATION}
