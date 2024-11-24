@@ -21,6 +21,7 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
   const [date, setDate] = useState<Date | null>(event?.date ? new Date(event.date) : null);
   const [description, setDescription] = useState(event?.description || '');
   const [imageUrl, setImageUrl] = useState(event?.imageUrl || '');
+  const [localImageUrl, setLocalImageUrl] = useState<string>(event?.imageUrl || '');
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
@@ -28,7 +29,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [localImageUrl, setLocalImageUrl] = useState<string>('');
 
   const handleImageUpload = async (file: File) => {
     try {
@@ -134,8 +134,8 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
     try {
       let finalImageUrl = imageUrl;
 
-      // If we have a new image (either file or URL), upload it
-      if (localImageUrl && !imageUrl) {
+      // Only upload if we have a new image (either file or URL) and it's different from the existing URL
+      if (localImageUrl && localImageUrl !== event?.imageUrl) {
         if (imageFile) {
           // Upload file to Firebase Storage
           const fileRef = storageRef(storage, `events/${Date.now()}-${imageFile.name}`);
@@ -154,6 +154,9 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
           // Direct URL case
           finalImageUrl = localImageUrl;
         }
+      } else {
+        // Keep the existing image URL
+        finalImageUrl = event?.imageUrl || localImageUrl;
       }
 
       await onSave({
