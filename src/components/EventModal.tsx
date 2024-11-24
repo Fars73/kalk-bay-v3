@@ -30,6 +30,8 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
+  const isPermanentEvent = event?.isPermanent;
+
   const handleImageUpload = async (file: File) => {
     try {
       if (!file.type.startsWith('image/')) {
@@ -123,15 +125,25 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!localImageUrl) {
-      toast.error('Please add an image');
-      return;
-    }
+    if (loading) return;
 
-    setLoading(true);
-    setIsUploading(true);
     try {
+      setLoading(true);
+
+      // For permanent events, only allow time changes
+      if (isPermanentEvent) {
+        await onSave({
+          ...event,
+          time
+        });
+        return;
+      }
+
+      if (!localImageUrl) {
+        toast.error('Please add an image');
+        return;
+      }
+
       let finalImageUrl = imageUrl;
 
       // Only upload if we have a new image (either file or URL) and it's different from the existing URL
@@ -173,7 +185,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
       toast.error('Failed to save event');
     } finally {
       setLoading(false);
-      setIsUploading(false);
     }
   };
 
@@ -221,7 +232,7 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
                 onChange={(e) => setTitle(e.target.value)}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 required
-                disabled={event?.isPermanent}
+                disabled={isPermanentEvent}
               />
             </div>
 
@@ -240,7 +251,7 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onSave, isEditi
                 />
               </div>
 
-              {!event?.isPermanent && (
+              {!isPermanentEvent && (
                 <div className="flex-1">
                   <label htmlFor="date" className="block text-sm font-medium text-gray-700">
                     Date
