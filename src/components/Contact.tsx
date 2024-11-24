@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Phone, Facebook, Instagram } from 'lucide-react';
 import { toast } from 'sonner';
+import emailjs from '@emailjs/browser';
 
 const Contact = () => {
   const [showForm, setShowForm] = useState(false);
@@ -9,13 +10,37 @@ const Contact = () => {
     email: '',
     message: ''
   });
+  const [sending, setSending] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    toast.success('Message sent successfully!');
-    setShowForm(false);
-    setFormData({ name: '', email: '', message: '' });
+    setSending(true);
+
+    try {
+      // Replace these with your actual EmailJS credentials
+      const templateParams = {
+        to_email: 'info@kalkbaychurch.org',
+        from_name: formData.name,
+        from_email: formData.email,
+        message: formData.message,
+      };
+
+      await emailjs.send(
+        'YOUR_SERVICE_ID', // Replace with your EmailJS service ID
+        'YOUR_TEMPLATE_ID', // Replace with your EmailJS template ID
+        templateParams,
+        'YOUR_PUBLIC_KEY' // Replace with your EmailJS public key
+      );
+
+      toast.success('Message sent successfully!');
+      setShowForm(false);
+      setFormData({ name: '', email: '', message: '' });
+    } catch (error) {
+      console.error('Error sending email:', error);
+      toast.error('Failed to send message. Please try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -44,7 +69,7 @@ const Contact = () => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-800">Email Us</h3>
-                <p className="text-gray-600">info@kalkbaychurch.org</p>
+                <p className="text-gray-600">grantallen3546@gmail.com</p>
               </div>
             </div>
 
@@ -123,9 +148,10 @@ const Contact = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    disabled={sending}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
                   >
-                    Send Message
+                    {sending ? 'Sending...' : 'Send Message'}
                   </button>
                 </div>
               </form>
