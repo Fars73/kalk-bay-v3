@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Download, Plus, Pause } from 'lucide-react';
+import { Play, Download, Plus, Pause, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { ref, get, push, set} from 'firebase/database';
 import { database } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import AudioUpload from './AudioUpload';
+import { useAudio } from '../context/AudioContext';
 
 interface SermonData {
   id: string;
@@ -15,17 +16,29 @@ interface SermonData {
   description?: string;
 }
 
-const SermonCard = React.memo(({ sermon }: { sermon: SermonData }) => {
+const SermonCard = React.memo(({ sermon, onDelete }: { sermon: SermonData; onDelete?: () => void }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const { currentlyPlaying, setCurrentlyPlaying } = useAudio();
+
+  useEffect(() => {
+    if (currentlyPlaying && currentlyPlaying !== sermon.id && isPlaying) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+    }
+  }, [currentlyPlaying, sermon.id, isPlaying]);
 
   const handlePlay = () => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
+        setCurrentlyPlaying(null);
       } else {
+        setCurrentlyPlaying(sermon.id);
         audioRef.current.play();
       }
       setIsPlaying(!isPlaying);
@@ -67,18 +80,21 @@ const SermonCard = React.memo(({ sermon }: { sermon: SermonData }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow border border-gray-100 dark:border-gray-700">
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h3 className="text-xl font-semibold text-gray-800">{sermon.title}</h3>
-          <p className="text-gray-500 text-sm">
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-1">
+            {sermon.title}
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
             {format(new Date(sermon.date), 'MMMM d, yyyy')}
           </p>
         </div>
         <div className="flex space-x-2">
           <button
             onClick={handlePlay}
-            className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+            className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/70 transition-colors"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
               <Pause className="h-5 w-5" />
@@ -88,19 +104,36 @@ const SermonCard = React.memo(({ sermon }: { sermon: SermonData }) => {
           </button>
           <button
             onClick={handleDownload}
-            className="p-2 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            aria-label="Download"
           >
             <Download className="h-5 w-5" />
           </button>
+          {isAdmin && onDelete && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                if (window.confirm('Are you sure you want to delete this sermon?')) {
+                  onDelete();
+                }
+              }}
+              className="p-2 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/70 transition-colors"
+              aria-label="Delete"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </div>
       
       {sermon.description && (
-        <p className="text-gray-600 text-sm mb-4">{sermon.description}</p>
+        <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
+          {sermon.description}
+        </p>
       )}
 
       <div className="flex items-center space-x-2">
-        <span className="text-xs text-gray-500 w-12">
+        <span className="text-xs text-gray-500 dark:text-gray-400 w-12">
           {formatTime(currentTime)}
         </span>
         <input
@@ -109,9 +142,13 @@ const SermonCard = React.memo(({ sermon }: { sermon: SermonData }) => {
           max={duration || 0}
           value={currentTime}
           onChange={handleSeek}
-          className="flex-grow h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:rounded-full hover:[&::-webkit-slider-thumb]:bg-blue-700"
+          className="flex-grow h-1 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer 
+            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 
+            [&::-webkit-slider-thumb]:bg-blue-600 dark:[&::-webkit-slider-thumb]:bg-blue-400 
+            [&::-webkit-slider-thumb]:rounded-full hover:[&::-webkit-slider-thumb]:bg-blue-700 
+            dark:hover:[&::-webkit-slider-thumb]:bg-blue-500"
         />
-        <span className="text-xs text-gray-500 w-12">
+        <span className="text-xs text-gray-500 dark:text-gray-400 w-12">
           {formatTime(duration)}
         </span>
       </div>
@@ -214,6 +251,18 @@ const Sermons = () => {
     }
   };
 
+  const handleDeleteSermon = async (sermonId: string) => {
+    try {
+      const sermonRef = ref(database, `sermons/${sermonId}`);
+      await set(sermonRef, null);
+      setSermons(prev => prev.filter(sermon => sermon.id !== sermonId));
+      toast.success('Sermon deleted successfully');
+    } catch (error) {
+      console.error('Error deleting sermon:', error);
+      toast.error('Failed to delete sermon');
+    }
+  };
+
   if (loading) {
     return (
       <section id="sermons" className="py-20 bg-white dark:bg-gray-900">
@@ -261,7 +310,11 @@ const Sermons = () => {
             <p className="text-center text-gray-600">No sermons available yet.</p>
           ) : (
             sermons.map((sermon) => (
-              <SermonCard key={sermon.id} sermon={sermon} />
+              <SermonCard 
+                key={sermon.id} 
+                sermon={sermon} 
+                onDelete={() => handleDeleteSermon(sermon.id)}
+              />
             ))
           )}
         </div>
