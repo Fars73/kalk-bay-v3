@@ -12,25 +12,65 @@ const Contact = () => {
   });
   const [sending, setSending] = useState(false);
 
+  const getRandomMessage = (name: string, churchName: string) => {
+    const messages = [
+      `Dear ${name} \n\nthank you for reaching out to us! We're delighted to hear from you and will respond to your message soon. In the meantime, we invite you to join us for our weekly services. \n\nBlessings \n${churchName }`,
+      `Hello ${name}! \n\nWe've received your message and appreciate you contacting us. Our team will get back to you shortly. Feel free to explore our upcoming events on our website. \n\nWarm regards, \n${churchName}`,
+      `Greetings ${name}! \n\nThank you for connecting with us. We've received your message and will respond as soon as possible. We look forward to getting to know you better! \n\nBest wishes, \n${churchName}`,
+      `Dear ${name}, \n\nwe're grateful you've reached out to us. Your message is important to us, and we'll be in touch soon. May God bless you! \n\nSincerely \n${churchName}`
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  };
+
+  const sendAutoReply = async (recipientEmail: string, recipientName: string) => {
+    try {
+      const autoReplyParams = {
+        welcome_subject: 'Welcome to KBCC Church!',
+        from_name: 'KBCC Church',
+        to_name: recipientName,
+        message: getRandomMessage(recipientName, 'KBCC Church'),
+        to_email: recipientEmail,
+        reply_to: 'grantallen3546@gmail.com'
+      };
+
+      await emailjs.send(
+        'service_554tvoz',
+        'template_eiilf8l',
+        autoReplyParams,
+        'BrQz9euAMxQx_MFJb'
+      );
+    } catch (error) {
+      console.error('Error sending auto-reply:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
 
     try {
-      // Replace these with your actual EmailJS credentials
+      // First send the message to the church
       const templateParams = {
-        to_email: 'info@kalkbaychurch.org',
+        to_email: 'grantallen3546@gmail.com',
+        to_name: 'KBCC Church',
         from_name: formData.name,
         from_email: formData.email,
         message: formData.message,
+        reply_to: formData.email
       };
 
-      await emailjs.send(
-        'YOUR_SERVICE_ID', // Replace with your EmailJS service ID
-        'YOUR_TEMPLATE_ID', // Replace with your EmailJS template ID
+      // Send main email to church
+      const mainEmailResult = await emailjs.send(
+        'service_554tvoz',
+        'template_8wfq1rh',
         templateParams,
-        'YOUR_PUBLIC_KEY' // Replace with your EmailJS public key
+        'BrQz9euAMxQx_MFJb'
       );
+
+      // Only send auto-reply if main email was successful
+      if (mainEmailResult.status === 200) {
+        await sendAutoReply(formData.email, formData.name);
+      }
 
       toast.success('Message sent successfully!');
       setShowForm(false);
@@ -75,7 +115,7 @@ const Contact = () => {
 
             <div className="flex items-center space-x-4">
               <a
-                href="https://facebook.com"
+                 href="https://www.facebook.com/KalkBayCC/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-blue-100 p-3 rounded-full hover:bg-blue-200 transition-colors"

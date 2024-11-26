@@ -12,7 +12,7 @@ const Hero = () => {
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: 'url("https://images.unsplash.com/photo-1505672678657-cc7037095e60?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80")',
+          backgroundImage: 'url("https://firebasestorage.googleapis.com/v0/b/timereaper-4f20e.appspot.com/o/cross3.jpeg?alt=media&token=d5d452fb-293f-4f09-b2d5-1a8e9f870bc5")',
         }}
       >
         <div className="absolute inset-0 bg-black bg-opacity-50" />
@@ -26,7 +26,9 @@ const Hero = () => {
       >
         <div className="max-w-4xl">
           <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
-            Welcome to Kalk Bay Community Church
+            Welcome to
+            <br/> 
+            Kalk Bay Community Church
           </h1>
           <p className="text-xl md:text-2xl text-white mb-8">
             Join us in worship as we grow together in faith, hope, and love.

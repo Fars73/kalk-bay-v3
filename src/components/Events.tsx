@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, Edit, Trash2 } from 'lucide-react';
+import { Clock, Plus, Edit, Trash2 } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'sonner';
@@ -38,10 +38,6 @@ const EventCard = React.memo(({ event, onEdit, onDelete, isAdmin }: {
       }
     }
   }, [inView, event.imageUrl]);
-
-  const addToCalendar = () => {
-    toast.success('Event added to calendar!');
-  };
 
   const isEventCurrentlyOpen = (event: Event) => {
     if (!event.date || !event.time) return false;
@@ -160,13 +156,6 @@ const EventCard = React.memo(({ event, onEdit, onDelete, isAdmin }: {
           )}
         </div>
         <p className="text-gray-600 dark:text-gray-300 mb-4">{event.description}</p>
-        <button
-          onClick={addToCalendar}
-          className="flex items-center justify-center w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-        >
-          <Calendar className="h-5 w-5 mr-2" />
-          Add to Calendar
-        </button>
       </div>
     </div>
   );
@@ -268,7 +257,7 @@ const Events = () => {
     return (
       <section className="py-20 bg-white dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-12">
+          <div className="flex justify-center items-center mb-12">
             <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-100">Recent Events</h2>
           </div>
           <div className="grid md:grid-cols-2 gap-8">
@@ -291,12 +280,12 @@ const Events = () => {
   return (
     <section className="py-20 bg-white dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-12">
+        <div className="flex justify-center items-center mb-12">
           <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-100">Recent Events</h2>
           {isAdmin && (
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ml-4"
             >
               <Plus className="h-5 w-5 mr-2" />
               Add Event

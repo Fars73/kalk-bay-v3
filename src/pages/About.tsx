@@ -1,6 +1,7 @@
 import React from 'react';
 import { useInView } from 'react-intersection-observer';
 import { Mail } from 'lucide-react';
+import ChurchLife from '../components/ChurchLife';
 
 const About = () => {
   const { ref, inView } = useInView({
@@ -109,6 +110,7 @@ const About = () => {
           </div>
         </div>
       </div>
+      <ChurchLife />
     </div>
   );
 };

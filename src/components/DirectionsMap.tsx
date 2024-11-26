@@ -6,14 +6,11 @@ import { MapControls } from './map/MapControls';
 import { ZoomControls } from './map/ZoomControls';
 import type { TravelMode } from './map/types';
 
-// Add type declarations for google maps
-declare global {
-  interface Window {
-    google: typeof google;
-  }
-}
+const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 
 const DirectionsMap: React.FC = () => {
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [distance, setDistance] = useState<string>('');
@@ -25,6 +22,17 @@ const DirectionsMap: React.FC = () => {
   
   const originRef = useRef<google.maps.places.Autocomplete | null>(null);
   const autocompleteInputRef = useRef<HTMLInputElement>(null);
+
+  const handleMapLoad = (map: google.maps.Map) => {
+    setMap(map);
+    setIsLoaded(true);
+  };
+
+  const handleLoadError = (error: Error) => {
+    console.error('Error loading Google Maps:', error);
+    setMapError('Failed to load Google Maps. Please try again later.');
+    toast.error('Failed to load Google Maps');
+  };
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -201,11 +209,28 @@ const DirectionsMap: React.FC = () => {
     }
   };
 
+  if (mapError) {
+    return (
+      <div className="relative h-[600px] w-full rounded-lg overflow-hidden shadow-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+        <div className="text-center p-4">
+          <p className="text-red-600 dark:text-red-400 font-medium">{mapError}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <LoadScript
         googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-        libraries={['places', 'geometry']}
+        libraries={libraries}
+        onError={handleLoadError}
       >
         <GoogleMap
           center={CHURCH_LOCATION}
@@ -216,7 +241,7 @@ const DirectionsMap: React.FC = () => {
             gestureHandling: 'cooperative',
             scrollwheel: false,
           }}
-          onLoad={(map: google.maps.Map) => setMap(map)}
+          onLoad={handleMapLoad}
         >
           <Marker
             position={CHURCH_LOCATION}
