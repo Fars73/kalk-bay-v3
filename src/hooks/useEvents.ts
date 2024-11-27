@@ -51,116 +51,128 @@ export const useEvents = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
+  // Initialize default events if they don't exist
   useEffect(() => {
+    const initializeDefaultEvents = async () => {
+      try {
+        const eventsRef = ref(database, 'events');
+        const snapshot = await get(eventsRef);
+        
+        if (!snapshot.exists()) {
+          // If no events exist at all, create the defaults
+          const updates: Record<string, Event> = {};
+          
+          const sundayRef = push(eventsRef);
+          updates[sundayRef.key!] = {
+            ...DEFAULT_EVENTS[0],
+            id: sundayRef.key!,
+            date: getNextDate(0)
+          } as Event;
+
+          const wednesdayRef = push(eventsRef);
+          updates[wednesdayRef.key!] = {
+            ...DEFAULT_EVENTS[1],
+            id: wednesdayRef.key!,
+            date: getNextDate(3)
+          } as Event;
+
+          await set(ref(database, 'events'), updates);
+        } else {
+          // Check if permanent events exist
+          let hasSundayService = false;
+          let hasBibleStudy = false;
+
+          snapshot.forEach((childSnapshot: DataSnapshot) => {
+            const event = childSnapshot.val() as Event;
+            if (event.isPermanent && event.recurrence) {
+              if (event.recurrence.dayOfWeek === 0) hasSundayService = true;
+              if (event.recurrence.dayOfWeek === 3) hasBibleStudy = true;
+            }
+          });
+
+          // Create only missing permanent events
+          const updates: Record<string, Event> = {};
+
+          if (!hasSundayService) {
+            const sundayRef = push(eventsRef);
+            updates[sundayRef.key!] = {
+              ...DEFAULT_EVENTS[0],
+              id: sundayRef.key!,
+              date: getNextDate(0)
+            } as Event;
+          }
+
+          if (!hasBibleStudy) {
+            const wednesdayRef = push(eventsRef);
+            updates[wednesdayRef.key!] = {
+              ...DEFAULT_EVENTS[1],
+              id: wednesdayRef.key!,
+              date: getNextDate(3)
+            } as Event;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await set(ref(database, 'events'), updates);
+          }
+        }
+        setInitialized(true);
+      } catch (err) {
+        console.error('Error initializing events:', err);
+        setError(err instanceof Error ? err : new Error('Failed to initialize events'));
+        setInitialized(true);
+      }
+    };
+
+    initializeDefaultEvents();
+  }, []);
+
+  // Listen for changes only after initialization
+  useEffect(() => {
+    if (!initialized) return;
+
     const eventsRef = ref(database, 'events');
     
-    const initializePermanentEvents = async () => {
-      const snapshot = await get(eventsRef);
-      
-      let existingSundayService: Event | undefined;
-      let existingBibleStudy: Event | undefined;
-      
-      if (snapshot.exists()) {
-        snapshot.forEach((childSnapshot: DataSnapshot) => {
-          const event = childSnapshot.val() as Event;
-          if (event.isPermanent && event.recurrence) {
-            if (event.recurrence.dayOfWeek === 0) {
-              existingSundayService = { ...event, id: childSnapshot.key as string };
-            } else if (event.recurrence.dayOfWeek === 3) {
-              existingBibleStudy = { ...event, id: childSnapshot.key as string };
-            }
-          }
-        });
-      }
-
-      const updates: Record<string, Event> = {};
-
-      if (!existingSundayService) {
-        const sundayRef = push(eventsRef);
-        updates[sundayRef.key!] = {
-          ...DEFAULT_EVENTS[0],
-          id: sundayRef.key!,
-          date: getNextDate(0)
-        } as Event;
-      }
-
-      if (!existingBibleStudy) {
-        const wednesdayRef = push(eventsRef);
-        updates[wednesdayRef.key!] = {
-          ...DEFAULT_EVENTS[1],
-          id: wednesdayRef.key!,
-          date: getNextDate(3)
-        } as Event;
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await set(ref(database, 'events'), updates);
-      }
-    };
-
-    const validateAndUpdatePermanentEvents = async (events: Event[]) => {
-      const updates: Record<string, Event> = {};
-      const now = new Date();
-
-      events.forEach(event => {
-        if (event.isPermanent && event.recurrence) {
-          const eventDate = new Date(`${event.date}T${event.time}`);
-          const eventEnd = new Date(eventDate.getTime() + (2 * 60 * 60 * 1000));
-          
-          if (now > eventEnd) {
-            const nextDate = getNextDate(event.recurrence.dayOfWeek);
-            updates[`events/${event.id}`] = {
-              ...event,
-              date: nextDate
-            };
-          }
-        }
-      });
-
-      if (Object.keys(updates).length > 0) {
-        await set(ref(database), updates);
-      }
-    };
-
-    const checkForDeletedPermanentEvents = async (events: Event[]) => {
-      const hasSundayService = events.some(
-        event => event.isPermanent && event.recurrence?.dayOfWeek === 0
-      );
-      const hasBibleStudy = events.some(
-        event => event.isPermanent && event.recurrence?.dayOfWeek === 3
-      );
-
-      if (!hasSundayService || !hasBibleStudy) {
-        await initializePermanentEvents();
-      }
-    };
-
-    initializePermanentEvents();
-
     const unsubscribe = onValue(eventsRef, async (snapshot: DataSnapshot) => {
       try {
-        if (!snapshot.exists()) {
-          await initializePermanentEvents();
-          setEvents([]);
-          setLoading(false);
-          return;
+        const allEvents: Event[] = [];
+        
+        if (snapshot.exists()) {
+          snapshot.forEach((childSnapshot: DataSnapshot) => {
+            const data = childSnapshot.val() as Event;
+            if (data) {
+              allEvents.push({
+                ...data,
+                id: childSnapshot.key || ''
+              });
+            }
+          });
+
+          // Update dates for permanent events if needed
+          const updates: Record<string, Event> = {};
+          const now = new Date();
+
+          allEvents.forEach(event => {
+            if (event.isPermanent && event.recurrence && event.date) {
+              const eventDate = new Date(`${event.date}T${event.time}`);
+              const eventEnd = new Date(eventDate.getTime() + (2 * 60 * 60 * 1000));
+              
+              if (now > eventEnd) {
+                const nextDate = getNextDate(event.recurrence.dayOfWeek);
+                updates[`events/${event.id}`] = {
+                  ...event,
+                  date: nextDate
+                };
+              }
+            }
+          });
+
+          if (Object.keys(updates).length > 0) {
+            await set(ref(database), updates);
+          }
         }
 
-        const allEvents: Event[] = [];
-        snapshot.forEach((childSnapshot: DataSnapshot) => {
-          const data = childSnapshot.val() as Event;
-          if (data) {
-            allEvents.push({
-              ...data,
-              id: childSnapshot.key || ''
-            });
-          }
-        });
-
-        await checkForDeletedPermanentEvents(allEvents);
-        await validateAndUpdatePermanentEvents(allEvents);
-        
         const sortedEvents = allEvents.sort((a, b) => {
           if (!a.date || !b.date) return 0;
           return new Date(a.date).getTime() - new Date(b.date).getTime();
@@ -174,14 +186,10 @@ export const useEvents = () => {
       } finally {
         setLoading(false);
       }
-    }, (err: Error) => {
-      console.error('Error in onValue subscription:', err);
-      setError(err instanceof Error ? err : new Error('Failed to subscribe to events'));
-      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [initialized]);
 
   return { events, loading, error };
 };
